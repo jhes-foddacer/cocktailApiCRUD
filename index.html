@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adicionar Coquetéis da API</title>
+</head>
+<body>
+    <h1>Adicionar Coquetéis da API</h1>
+    <button onclick="fetchCocktails()">Carregar Coquetéis</button>
+    <button onclick="deleteAllCocktails()">Excluir Todos os Coquetéis</button>
+
+    <h2>Lista de Coquetéis</h2>
+    <ul id="cocktailList"></ul>
+
+    <h2>Logs de Operações</h2>
+    <ul id="logList"></ul>
+
+    <script>
+        async function fetchCocktails() {
+            const response = await fetch('https://www.thecocktaildb.com/api/json/v1/1/search.php?s=Margarita');
+            const data = await response.json();
+
+            if (data.drinks && Array.isArray(data.drinks)) {
+                const cocktails = data.drinks;
+                const cocktailList = document.getElementById('cocktailList');
+                cocktailList.innerHTML = '';
+
+                cocktails.forEach(async (cocktail) => {
+                    const listItem = document.createElement('li');
+                    listItem.id = cocktail.idDrink;
+                    listItem.innerHTML = `
+                        <strong>${cocktail.strDrink}</strong> - ${cocktail.strCategory} (${cocktail.strAlcoholic}) 
+                        <button onclick="editCocktail('${cocktail.idDrink}')">Editar</button>
+                        <button onclick="deleteCocktail('${cocktail.idDrink}')">Excluir</button>
+                    `;
+                    cocktailList.appendChild(listItem);
+
+                    const cocktailData = {
+                        api_id: cocktail.idDrink,
+                        name: cocktail.strDrink,
+                        category: cocktail.strCategory,
+                        alcoholic: cocktail.strAlcoholic,
+                        instructions: cocktail.strInstructions,
+                        thumbnail: cocktail.strDrinkThumb || 'default_image.jpg',
+                    };
+
+                    await fetch('create_cocktail.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(cocktailData),
+                    });
+                });
+
+                await fetch('log_api_access.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ numeroregistros: cocktails.length }),
+                });
+            } else {
+                console.error("Resposta inválida ou 'drinks' não encontrado.");
+            }
+        }
+
+        async function editCocktail(id) {
+            const newName = prompt("Digite o novo nome do coquetel:");
+            const newCategory = prompt("Digite a nova categoria:");
+            const newAlcoholic = prompt("É alcoólico? (Sim/Não):");
+            const newInstructions = prompt("Digite as novas instruções:");
+
+            if (newName && newCategory && newAlcoholic && newInstructions) {
+                const updatedData = {
+                    idDrink: id,
+                    name: newName,
+                    category: newCategory,
+                    alcoholic: newAlcoholic,
+                    instructions: newInstructions,
+                };
+
+                await fetch('update_cocktail.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedData),
+                });
+
+                alert('Coquetel atualizado com sucesso!');
+
+                const listItem = document.getElementById(id);
+                listItem.innerHTML = `
+                    <strong>${newName}</strong> - ${newCategory} (${newAlcoholic}) 
+                    <button onclick="editCocktail('${id}')">Editar</button>
+                    <button onclick="deleteCocktail('${id}')">Excluir</button>
+                `;
+            } else {
+                alert('Todos os campos devem ser preenchidos!');
+            }
+        }
+
+        async function deleteCocktail(id) {
+            if (confirm("Tem certeza de que deseja excluir este coquetel?")) {
+                await fetch('delete_cocktail.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idDrink: id }),
+                });
+
+                alert('Coquetel excluído com sucesso!');
+
+                const listItem = document.getElementById(id);
+                listItem.remove();
+            }
+        }
+
+        async function deleteAllCocktails() {
+            if (confirm("Tem certeza de que deseja excluir todos os coquetéis?")) {
+                const response = await fetch('delete_all_cocktails.php', {
+                    method: 'POST',
+                });
+                const data = await response.json();
+
+                if (data.message) {
+                    alert(data.message);
+
+                    const cocktailList = document.getElementById('cocktailList');
+                    cocktailList.innerHTML = '';
+                } else if (data.error) {
+                    console.error(data.error);
+                    alert('Erro ao excluir todos os coquetéis.');
+                }
+            }
+        }
+
+        async function fetchLogs() {
+            const response = await fetch('get_logs.php');
+            const logs = await response.json();
+
+            const logList = document.getElementById('logList');
+            logList.innerHTML = '';
+
+            logs.forEach((log) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `Data/Hora: ${log.datahora} | Registros: ${log.numeroregistros}`;
+                logList.appendChild(listItem);
+            });
+        }
+
+        fetchLogs();
+    </script>
+</body>
+</html>
